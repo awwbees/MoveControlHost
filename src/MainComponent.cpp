@@ -8,8 +8,10 @@ namespace
     ableton::Push2DisplayBridge ThePushBridge; // The bridge allowing to use juce::graphics for push
 }
 
-MainComponent::MainComponent()
+MainComponent::MainComponent(juce::DocumentWindow* window)
 {
+    mWindow = window;
+
     setSize (200, 100);
 
     mOutputText = "initializing...";
@@ -28,8 +30,9 @@ bool MainComponent::Initialize()
         }
         mOutputText = "ableton move connected";
 
-        //mLCD.Init();
         DrawToLCD();
+
+        startTimerHz(6);
     }
 
     return true;
@@ -37,11 +40,12 @@ bool MainComponent::Initialize()
 
 void MainComponent::DrawToLCD()
 {
-    static constexpr int kMoveDisplayWidth = 128;
-    static constexpr int kMoveDisplayHeight = 64;
+    constexpr int kMoveDisplayWidth = 128;
+    constexpr int kMoveDisplayHeight = 64;
+    constexpr int kCheckerboardSize = 8;
 
     uint16_t* pixels = ThePushBridge.GetDisplay()->GetRawBitmap();
-    memset(pixels, 0, sizeof(uint16_t) * kMoveDisplayWidth * kMoveDisplayHeight * 4);
+    //memset(pixels, 0, sizeof(uint16_t) * kMoveDisplayWidth * kMoveDisplayHeight * 4);
     constexpr int kPixelBlockRows = 8;
     constexpr int kPixelBlockColumns = 64;
     constexpr int kPixelBlockCellWidth = 2;
@@ -51,18 +55,26 @@ void MainComponent::DrawToLCD()
         for (int col = 0; col < kPixelBlockColumns; ++col)
         {
             int cellIndex = col + row * kPixelBlockColumns;
+            pixels[cellIndex] = 0;
             int pixelXStart = col * kPixelBlockCellWidth;
             int pixelYStart = row * kPixelBlockCellHeight;
             for (int i = 0; i < kPixelBlockCellWidth * kPixelBlockCellHeight; ++i)
             {
                 int pixelX = pixelXStart + i / kPixelBlockCellHeight;
                 int pixelY = pixelYStart + i % kPixelBlockCellHeight;
-                constexpr int kCheckerboardSize = 4;
+                pixelY += mScroll;
                 if ((pixelX / kCheckerboardSize) % 2 != (pixelY / kCheckerboardSize) % 2)
                     pixels[cellIndex] |= 1 << i;
             }
         }
     }
+
+    mScroll = (mScroll + 1) % (kCheckerboardSize * 2);
+}
+
+void MainComponent::timerCallback()
+{
+    DrawToLCD();
 }
 
 
