@@ -1,6 +1,8 @@
 # MoveControlHost
 This is a host app for Ableton Move to act as a fake host in "Control Live" mode. It allows you to use the Ableton Move as a mappable MIDI control surface for any DAW/DJ software/VJ software/etcetera.
 
+<a href=https://github.com/awwbees/MoveControlHost/releases/>Download it here!</a>
+
 The actual functionality of this app is very simple: it just establishes a connection with the Move and writes an image to the LCD screen, to keep it from going to "sleep". Without this app, the LEDs on the Move go dark 1 second after you stop sending it MIDI messages. With this app running, the LEDs stay lit.
 
 Here's a video explanation:  
