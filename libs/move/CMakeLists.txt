@@ -1,15 +1,14 @@
-project(push2)
+project(move)
 
 add_library(${PROJECT_NAME}
-    JuceToPush2DisplayBridge.cpp
-    Push2-Display.cpp
-    Push2-Display.h
-    Push2-UsbCommunicator.h
+    JuceToMoveDisplayBridge.cpp
+        Move-Display.cpp
+        Move-Display.h
+        Move-UsbCommunicator.h
     Result.cpp
-    include/push2/JuceToPush2DisplayBridge.h
-    include/push2/Macros.h
-    include/push2/Push2-Bitmap.h
-    include/push2/Result.h
+    include/move/JuceToMoveDisplayBridge.h
+    include/move/Macros.h
+    include/move/Result.h
     )
 
 # FIXME: The code currently assumes that WIN32 == MSVC and will fail to build
@@ -58,7 +57,7 @@ else()
     target_link_libraries(${PROJECT_NAME} PRIVATE ${LIBUSB_LIBRARIES})
 endif()
 
-target_sources(${PROJECT_NAME} PRIVATE Push2-Usb-Communicator.cpp)
+target_sources(${PROJECT_NAME} PRIVATE Move-Usb-Communicator.cpp)
 
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 add_library(movecontrolhost::${PROJECT_NAME} ALIAS ${PROJECT_NAME})

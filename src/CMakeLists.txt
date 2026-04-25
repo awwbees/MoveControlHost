@@ -18,7 +18,7 @@ target_compile_definitions(${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME}
     PRIVATE
         juce::juce_gui_extra
-        movecontrolhost::push2
+        movecontrolhost::move
     PUBLIC
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags

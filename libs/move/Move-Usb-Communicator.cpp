@@ -18,7 +18,7 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
-#include "Push2-UsbCommunicator.h"
+#include "Move-UsbCommunicator.h"
 
 #include <cstdint>
 
@@ -45,7 +45,7 @@ namespace
 
   // Uses libusb to create a device handle for the push display
 
-  NBase::Result SFindPushDisplayDeviceHandle(libusb_device_handle** pHandle, DeviceType deviceType)
+  NBase::Result SFindPushDisplayDeviceHandle(libusb_device_handle** pHandle)
   {
     using namespace NBase;
 
@@ -72,7 +72,7 @@ namespace
       return Result("could not get usb device list");
     }
 
-    // Look for the one matching push2's decriptors
+    // Look for the one matching move's descriptors
     libusb_device* device;
     libusb_device_handle* device_handle = NULL;
 
@@ -91,26 +91,11 @@ namespace
       }
 
       const uint16_t kAbletonVendorID = 0x2982;
-      const uint16_t kPush2ProductID = 0x1967;
       const uint16_t kMoveProductID = 0x1958;
 
-      uint16_t desiredDeviceClass = LIBUSB_CLASS_PER_INTERFACE;
+      uint16_t desiredDeviceClass = 0xef; //LIBUSB_CLASS_MISCELLANEOUS
       uint16_t desiredVendorId = kAbletonVendorID;
-      uint16_t desiredProductId = kPush2ProductID;
-
-      if (deviceType == DeviceType::Push2)
-      {
-         desiredDeviceClass = LIBUSB_CLASS_PER_INTERFACE;
-         desiredVendorId = kAbletonVendorID;
-         desiredProductId = kPush2ProductID;
-      }
-
-      if (deviceType == DeviceType::Move)
-      {
-         desiredDeviceClass = 0xef; //LIBUSB_CLASS_MISCELLANEOUS
-         desiredVendorId = kAbletonVendorID;
-         desiredProductId = kMoveProductID;
-      }
+      uint16_t desiredProductId = kMoveProductID;
 
       if (descriptor.bDeviceClass == desiredDeviceClass
           && descriptor.idVendor == desiredVendorId
@@ -168,9 +153,9 @@ namespace
     }
 
     // Sets the transfer characteristic
-    const unsigned char kPush2BulkEPOut = 0x01;
+    const unsigned char kMoveBulkEPOut = 0x01;
 
-    libusb_fill_bulk_transfer(transfer, handle, kPush2BulkEPOut,
+    libusb_fill_bulk_transfer(transfer, handle, kMoveBulkEPOut,
                               buffer, bufferSize,
                               SOnTransferFinished, instance, 1000);
     return transfer;
@@ -188,7 +173,7 @@ UsbCommunicator::UsbCommunicator()
 
 //------------------------------------------------------------------------------
 
-NBase::Result UsbCommunicator::Init(const pixel_t* dataSource, DeviceType deviceType)
+NBase::Result UsbCommunicator::Init(unsigned char* dataSource)
 {
   using namespace NBase;
 
@@ -196,7 +181,7 @@ NBase::Result UsbCommunicator::Init(const pixel_t* dataSource, DeviceType device
   dataSource_ = dataSource;
 
   // Initialise the handle
-  NBase::Result result = SFindPushDisplayDeviceHandle(&handle_, deviceType);
+  NBase::Result result = SFindPushDisplayDeviceHandle(&handle_);
   RETURN_IF_FAILED_MESSAGE(result, "Failed to initialize handle");
   assert(handle_ != NULL);
 
@@ -204,7 +189,7 @@ NBase::Result UsbCommunicator::Init(const pixel_t* dataSource, DeviceType device
   result = startSending();
   RETURN_IF_FAILED_MESSAGE(result, "Failed to initiate send");
 
-  // We initiate a thread so we can recieve events from libusb
+  // We initiate a thread so we can receive events from libusb
   terminate_ = false;
   pollThread_ = std::thread(&UsbCommunicator::PollUsbForEvents, this);
 
@@ -231,7 +216,6 @@ NBase::Result UsbCommunicator::startSending()
 {
   using namespace NBase;
 
-  currentLine_ = 0;
 
   // Allocates a transfer struct for the frame header
 
@@ -246,19 +230,14 @@ NBase::Result UsbCommunicator::startSending()
   frameHeaderTransfer_ =
   SAllocateAndPrepareTransferChunk(handle_, this, frameHeader, sizeof(frameHeader));
 
-  for (int i = 0; i < kSendBufferCount; i++)
-  {
-    unsigned char* buffer = (sendBuffers_ + i * kSendBufferSize);
 
     // Allocates a transfer struct for the send buffers
 
-    libusb_transfer* transfer =
-    SAllocateAndPrepareTransferChunk(handle_, this, buffer, kSendBufferSize);
+    frameDataTransfer_ = SAllocateAndPrepareTransferChunk(handle_, this, dataSource_, kSendBufferSize);
 
     // Start a request for this buffer
-    Result result = sendNextSlice(transfer);
+    Result result = sendData();
     RETURN_IF_FAILED(result);
-  }
 
   return Result::NoError;
 }
@@ -266,44 +245,22 @@ NBase::Result UsbCommunicator::startSending()
 
 //------------------------------------------------------------------------------
 
-NBase::Result UsbCommunicator::sendNextSlice(libusb_transfer* transfer)
+NBase::Result UsbCommunicator::sendData()
 {
   using namespace NBase;
 
-  // Start of a new frame, so send header first
-  if (currentLine_ == 0)
+  isWaitingForFrameToFinish_ = true;
+
+  // send header first
+  if (libusb_submit_transfer(frameHeaderTransfer_) < 0)
   {
-    if (libusb_submit_transfer(frameHeaderTransfer_) < 0)
-    {
-      return Result("could not submit frame header transfer");
-    }
+    return Result("could not submit frame header transfer");
   }
 
-  // Copy the next slice of the source data (represented by currentLine_)
-  // to the transfer buffer
-
-  unsigned char *dst = transfer->buffer;
-
-  const char* src = (const char*)dataSource_ + kLineSize * currentLine_;
-  unsigned char* end = dst + kSendBufferSize;
-
-  while (dst < end)
-  {
-    *dst++ = *src++;
-  }
-
-  // Send it
-  if (libusb_submit_transfer(transfer) < 0)
+  // send bitmap
+  if (libusb_submit_transfer(frameDataTransfer_) < 0)
   {
     return Result("could not submit display data transfer,");
-  }
-
-  // Update slice position
-  currentLine_ += kLineCountPerSendBuffer;
-
-  if (currentLine_ >= 160)
-  {
-    currentLine_ = 0;
   }
 
   return Result::NoError;
@@ -337,21 +294,11 @@ void UsbCommunicator::OnTransferFinished(libusb_transfer* transfer)
   }
   else if (transfer == frameHeaderTransfer_)
   {
-    onFrameCompleted();
   }
   else
   {
-    NBase::Result result = sendNextSlice(transfer);
-    assert(result.Succeeded());
+    isWaitingForFrameToFinish_ = false;
   }
-}
-
-
-//------------------------------------------------------------------------------
-
-void UsbCommunicator::onFrameCompleted()
-{
-  // Insert code here if you want anything to happen after each frame
 }
 
 
@@ -367,6 +314,18 @@ void UsbCommunicator::PollUsbForEvents()
     if (libusb_handle_events_timeout_completed(NULL, &timeout_500ms, &terminate_main_loop) < 0)
     {
       assert(0);
+    }
+  }
+}
+
+void UsbCommunicator::SendBitmapToDevice()
+{
+  if (frameHeaderTransfer_ != nullptr && !isWaitingForFrameToFinish_)
+  {
+    NBase::Result result = sendData();
+    if (!result.Succeeded())
+    {
+      printf("SendBiToDevice failed with reason: %s\n", result.GetDescription().c_str());
     }
   }
 }

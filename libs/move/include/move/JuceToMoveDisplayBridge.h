@@ -20,30 +20,24 @@
 
 #pragma once
 
-#include "push2/Result.h"
+#include "move/Result.h"
 
 #include <memory>
 
 namespace ableton
 {
-  class Push2Display;
+  class MoveDisplay;
 
   /*!
-   *  Implements a bridge between juce::Graphics and push2 display format.
+   *  Implements a bridge between juce::Graphics and move OLED display format.
    */
 
-  enum class DeviceType
-  {
-     Push2,
-     Move
-  };
-
-  class Push2DisplayBridge
+  class MoveDisplayBridge
   {
   public:
 
-    Push2DisplayBridge();
-    ~Push2DisplayBridge();
+    MoveDisplayBridge();
+    ~MoveDisplayBridge();
 
     /*!
      * Initialises the bridge
@@ -51,13 +45,13 @@ namespace ableton
      *  \return the result of the initialisation process
      */
 
-    NBase::Result Init(DeviceType deviceType);
+    NBase::Result Init();
 
     /*!
      *  \return true if this bridge is initialized
      */
 
-    bool IsInitialized() const { return bool{push2Display_}; }
+    bool IsInitialized() const { return bool{MoveDisplay_}; }
 
     /*!
      * Tells the bridge the drawing is done and the bitmap can be sent to
@@ -66,12 +60,12 @@ namespace ableton
 
     void Flip(unsigned char* pixels);
 
-    Push2Display* GetDisplay()
+    MoveDisplay* GetDisplay()
     {
-       return push2Display_.get();
+       return MoveDisplay_.get();
     }
 
   private:
-    std::unique_ptr<Push2Display> push2Display_;    /*< The push display the bridge works on */
+    std::unique_ptr<MoveDisplay> MoveDisplay_;    /*< The push display the bridge works on */
   };
 }

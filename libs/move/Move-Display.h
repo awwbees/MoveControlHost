@@ -20,57 +20,42 @@
 
 #pragma once
 
-#include "push2/Push2-Bitmap.h"
-#include "push2/Result.h"
-#include "Push2-UsbCommunicator.h"
-#include "push2/JuceToPush2DisplayBridge.h"
+#include "move/Result.h"
+#include "Move-UsbCommunicator.h"
+#include "move/JuceToMoveDisplayBridge.h"
 
 namespace ableton
 {
   //=====================================================================
 
-  class Push2Display
+  class MoveDisplay
   {
   public:
-    using pixel_t = Push2DisplayBitmap::pixel_t;
+    static MoveDisplay *create();
 
-    static Push2Display *create();
-
-    NBase::Result Init(DeviceType deviceType);
+    NBase::Result Init();
 
     // Transfers the bitmap into the output buffer sent to
     // the push display. The push display buffer has a larger stride
     // as the given bitmap
 
-    NBase::Result Flip(const Push2DisplayBitmap& g)
-    {
-      const pixel_t* src = g.PixelData();
-      pixel_t* dst = dataSource_;
-
-      const int graphicsWidth = g.GetWidth();
-      assert(g.GetHeight() == kDataSourceHeight);
-      for (uint8_t line = 0; line < kDataSourceHeight; line++)
-      {
-        memcpy(dst, src, graphicsWidth * sizeof(pixel_t));
-        src += graphicsWidth;
-        dst += kDataSourceWidth;
-      }
-
-      return NBase::Result::NoError;
-    }
-
-    pixel_t* GetRawBitmap()
+    unsigned char* GetRawBitmap()
     {
        return dataSource_;
     }
 
+    void SendBitmapToDevice()
+    {
+      communicator_.SendBitmapToDevice();
+    }
+
   private:
-    Push2Display() = default;
+    MoveDisplay() = default;
 
-    static const int kDataSourceWidth = 1024;
-    static const int kDataSourceHeight = 160;
+    static const int kDataSourceWidth = 128;
+    static const int kDataSourceHeight = 8;
 
-    pixel_t dataSource_[kDataSourceWidth * kDataSourceHeight]{};
+    unsigned char dataSource_[kDataSourceWidth * kDataSourceHeight]{};
 
     UsbCommunicator communicator_;
   };
